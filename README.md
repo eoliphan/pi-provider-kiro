@@ -1,6 +1,6 @@
 # pi-provider-kiro
 
-A [pi](https://shittycodingagent.ai/) provider extension that connects pi to the **Kiro API** (AWS CodeWhisperer/Q), exposing **19 free models across 8 families** through one provider surface.
+A [pi](https://pi.dev/) provider extension that connects pi to the **Kiro API** (AWS CodeWhisperer/Q), exposing **19 free models across 8 families** through one provider surface.
 
 ## Why this exists
 
