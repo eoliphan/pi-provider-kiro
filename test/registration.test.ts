@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { kiroModels } from "../src/models.js";
+import { modelsCache } from "../src/oauth.js";
 
 const mockPi = () => {
   const registerProvider = vi.fn();
@@ -8,6 +9,9 @@ const mockPi = () => {
 };
 
 describe("Feature 1: Extension Registration", () => {
+  afterEach(() => {
+    modelsCache.clear();
+  });
   it("exports a default function", async () => {
     const mod = await import("../src/index.js");
     expect(typeof mod.default).toBe("function");
@@ -81,6 +85,42 @@ describe("Feature 1: Extension Registration", () => {
     const creds = { access: "x", refresh: "x", expires: 0, clientId: "", clientSecret: "", region: ssoRegion };
     const modified = config.oauth.modifyModels(models, creds);
     expect(modified[0].baseUrl).toBe(`https://q.${expectedApiRegion}.amazonaws.com/generateAssistantResponse`);
+  });
+
+  it("modifyModels uses cached backend models for the resolved API region", async () => {
+    const mod = await import("../src/index.js");
+    const { pi, registerProvider } = mockPi();
+    mod.default(pi);
+
+    modelsCache.set("eu-central-1", [
+      {
+        id: "backend-only-model",
+        name: "Backend Only Model",
+        provider: "kiro",
+        api: "kiro-api",
+        baseUrl: "https://q.eu-central-1.amazonaws.com/generateAssistantResponse",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 64000,
+      },
+    ]);
+
+    const config = registerProvider.mock.calls[0][1];
+    const codex = {
+      id: "gpt-5.4",
+      name: "GPT-5.4",
+      provider: "openai-codex",
+      api: "openai",
+      baseUrl: "https://example.com",
+    };
+    const creds = { access: "x", refresh: "x", expires: 0, clientId: "", clientSecret: "", region: "eu-west-1" };
+    const modified = config.oauth.modifyModels([...kiroModels, codex], creds);
+
+    expect(modified.map((m: { id: string }) => m.id)).toContain("backend-only-model");
+    expect(modified.map((m: { id: string }) => m.id)).not.toContain("claude-sonnet-4-6");
+    expect(modified).toEqual(expect.arrayContaining([expect.objectContaining({ id: "gpt-5.4" })]));
   });
 
   it("modifyModels filters out unavailable models for EU regions", async () => {

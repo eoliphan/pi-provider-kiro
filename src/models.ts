@@ -1,5 +1,8 @@
 // Feature 2: Model Definitions
 
+import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
+import type { KiroModel } from "./api.js";
+
 // Valid Kiro model IDs - API accepts friendly names directly
 export const KIRO_MODEL_IDS = new Set([
   "claude-opus-4.7",
@@ -22,11 +25,13 @@ export const KIRO_MODEL_IDS = new Set([
   "auto",
 ]);
 
+const dynamicKiroModelIds = new Set<string>();
+
 export function resolveKiroModel(modelId: string): string {
   // Convert pi format (dashes) to kiro format (dots): claude-opus-4-6 -> claude-opus-4.6
   // Only convert digit-dash-digit patterns (version numbers like 4-6 -> 4.6)
   const kiroId = modelId.replace(/(\d)-(\d)/g, "$1.$2");
-  if (!KIRO_MODEL_IDS.has(kiroId)) {
+  if (!KIRO_MODEL_IDS.has(kiroId) && !dynamicKiroModelIds.has(kiroId)) {
     throw new Error(`Unknown Kiro model ID: ${modelId}`);
   }
   return kiroId;
@@ -91,7 +96,7 @@ const MODELS_BY_REGION: Record<string, Set<string>> = {
     "agi-nova-beta-1m",
     "auto",
   ]),
-  // API-verified 2026-04-14 (eu-west-1 IdC token)
+  // API-verified 2026-05-11 (eu-west-1 IdC token); glm-5 is us-east-1 only.
   "eu-central-1": new Set([
     "claude-opus-4-7",
     "claude-opus-4-6",
@@ -102,7 +107,6 @@ const MODELS_BY_REGION: Record<string, Set<string>> = {
     "claude-haiku-4-5",
     "minimax-m2-1",
     "minimax-m2-5",
-    "glm-5",
     "qwen3-coder-next",
     "auto",
   ]),
@@ -123,6 +127,35 @@ export function filterModelsByRegion<T extends { id: string }>(models: T[], apiR
 
 const BASE_URL = "https://q.us-east-1.amazonaws.com/generateAssistantResponse";
 const ZERO_COST = Object.freeze({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+
+export function mapKiroModel(model: KiroModel, apiRegion: string): Model<Api> {
+  dynamicKiroModelIds.add(model.modelId);
+  const piId = model.modelId.replace(/(\d)\.(\d)/g, "$1-$2");
+  const template = kiroModels.find((m) => m.id === piId);
+  const input: ("text" | "image")[] = [];
+  if (model.supportedInputTypes?.includes("TEXT")) input.push("text");
+  if (model.supportedInputTypes?.includes("IMAGE")) input.push("image");
+
+  return {
+    ...template,
+    id: piId,
+    name: model.modelName || template?.name || model.modelId,
+    api: "kiro-api" as const,
+    provider: "kiro" as const,
+    baseUrl: `https://q.${apiRegion}.amazonaws.com/generateAssistantResponse`,
+    reasoning: template?.reasoning ?? false,
+    input: input.length ? input : (template?.input ?? ["text"]),
+    cost: ZERO_COST,
+    contextWindow: model.tokenLimits?.maxInputTokens ?? template?.contextWindow ?? 200000,
+    maxTokens: model.tokenLimits?.maxOutputTokens ?? template?.maxTokens ?? 64000,
+  };
+}
+
+export async function fetchKiroModels(credentials: OAuthCredentials, apiRegion: string): Promise<Model<Api>[]> {
+  const { fetchAvailableModels } = await import("./api.js");
+  const response = await fetchAvailableModels(credentials);
+  return response.models.map((model) => mapKiroModel(model, apiRegion));
+}
 
 export const kiroModels = [
   // Claude Opus 4.7

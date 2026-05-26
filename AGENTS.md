@@ -64,9 +64,59 @@ Users can authenticate via:
 ```bash
 npm run build     # tsc → dist/
 npm run check     # tsc --noEmit (type check only)
-npm test          # vitest run (248 tests)
+npm test          # vitest run (302 tests)
 npm run test:watch # vitest (watch mode)
 ```
+
+## Manual pi Provider Smoke Tests
+
+Use this base command to run pi with only the local development version of this provider loaded:
+
+```bash
+pi --no-extensions -e ./src/index.ts
+```
+
+Useful smoke-test commands based on that base:
+
+```bash
+# List models visible through the local provider extension
+pi --no-extensions -e ./src/index.ts --provider kiro --list-models
+
+# Single read-only/no-tool prompt against Opus 4.7 with xhigh thinking
+pi --no-extensions -e ./src/index.ts --no-session --no-tools --model kiro/claude-opus-4-7:xhigh -p "Reply with exactly: kiro opus 4.7 smoke test ok"
+
+# Same model without xhigh, useful when isolating thinking-level issues
+pi --no-extensions -e ./src/index.ts --no-session --no-tools --model kiro/claude-opus-4-7 -p "Reply with exactly: kiro opus 4.7 smoke test ok"
+
+# Enable provider debug logging while testing request/response behavior
+KIRO_DEBUG=1 pi --no-extensions -e ./src/index.ts --no-session --no-tools --model kiro/claude-opus-4-7:xhigh -p "Reply with exactly: debug smoke test ok"
+```
+
+For broader model smoke tests, use a short prompt and stop on the first failure:
+
+```bash
+for model in \
+  claude-opus-4-7:xhigh \
+  claude-opus-4-6:xhigh \
+  claude-sonnet-4-6 \
+  claude-opus-4-5 \
+  claude-sonnet-4-5 \
+  claude-sonnet-4 \
+  claude-haiku-4-5 \
+  deepseek-3-2 \
+  kimi-k2-5 \
+  minimax-m2-5 \
+  minimax-m2-1 \
+  glm-5 \
+  qwen3-coder-next \
+  qwen3-coder-480b \
+  agi-nova-beta-1m \
+  auto; do
+  echo "=== $model ==="
+  pi --no-extensions -e ./src/index.ts --no-session --no-tools --model "kiro/$model" -p "Reply with exactly: smoke test ok for $model" || break
+done
+```
+
 
 ## Testing Patterns
 
