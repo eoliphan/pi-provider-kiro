@@ -1,6 +1,6 @@
 # pi-provider-kiro
 
-A [pi](https://shittycodingagent.ai/) provider extension that connects pi to the **Kiro API** (AWS CodeWhisperer/Q), exposing **19 free models across 8 families** through one provider surface.
+A [pi](https://shittycodingagent.ai/) provider extension that connects pi to the **Kiro API** (AWS CodeWhisperer/Q), exposing the models available to your Kiro account through one provider surface.
 
 ## Why this exists
 
@@ -9,20 +9,35 @@ Kiro gives you a strong free model menu, but pi needs a provider that speaks Kir
 - AWS Builder ID, IAM Identity Center, Google, and GitHub login flows
 - shared credentials from an existing `kiro-cli` session when available
 - reasoning-aware streaming
-- region-aware model filtering so pi only shows models your Kiro region can actually use
+- dynamic model discovery via Kiro's `ListAvailableModels` API so pi only shows models your account and region can actually use
 
 ## Quick start
 
-Install the provider:
+This fork is installed directly from GitHub, not npm.
+
+Install the provider globally for your pi user:
 
 ```bash
-pi install npm:pi-provider-kiro
+pi install git:github.com/eoliphan/pi-provider-kiro
 ```
 
-Or install it globally with npm:
+Or install it only for the current project:
 
 ```bash
-npm install -g pi-provider-kiro
+pi install -l git:github.com/eoliphan/pi-provider-kiro
+```
+
+To pin a specific branch, tag, or commit, append `@ref`:
+
+```bash
+pi install git:github.com/eoliphan/pi-provider-kiro@main
+pi install git:github.com/eoliphan/pi-provider-kiro@issue-69-dynamic-models
+```
+
+Update the installed GitHub package later with:
+
+```bash
+pi update --extensions
 ```
 
 Then log in from pi:
@@ -41,23 +56,19 @@ If you already use [kiro-cli](https://kiro.dev), the provider can reuse those cr
 
 ## Models
 
-| Family | Models | Context | Reasoning |
-|--------|--------|---------|-----------|
-| Claude Opus 4.6 | `claude-opus-4-6`, `claude-opus-4-6-1m` | 200K / 1M | ✓ |
-| Claude Sonnet 4.6 | `claude-sonnet-4-6`, `claude-sonnet-4-6-1m` | 200K / 1M | ✓ |
-| Claude Opus 4.5 | `claude-opus-4-5` | 200K | ✓ |
-| Claude Sonnet 4.5 | `claude-sonnet-4-5`, `claude-sonnet-4-5-1m` | 200K / 1M | ✓ |
-| Claude Sonnet 4 | `claude-sonnet-4` | 200K | ✓ |
-| Claude Haiku 4.5 | `claude-haiku-4-5` | 200K | ✗ |
-| DeepSeek 3.2 | `deepseek-3-2` | 128K | ✓ |
-| Kimi K2.5 | `kimi-k2-5` | 200K | ✓ |
-| MiniMax | `minimax-m2-1`, `minimax-m2-5` | 200K | ✗ |
-| GLM 4.7 | `glm-4-7`, `glm-4-7-flash` | 128K | ✓ / ✗ |
-| Qwen3 Coder | `qwen3-coder-next`, `qwen3-coder-480b` | 256K / 128K | ✓ |
-| AGI Nova | `agi-nova-beta-1m` | 1M | ✓ |
-| Auto | `auto` | 200K | ✓ |
+Kiro model availability is account-, plan-, auth-, and region-dependent. This provider fetches the model list from Kiro's backend and uses static metadata only as enrichment/fallback hints.
 
-All listed models are free to use through Kiro.
+List the models currently visible to pi with:
+
+```bash
+pi --provider kiro --list-models
+```
+
+For comparison, Kiro CLI exposes its current backend list with:
+
+```bash
+kiro-cli chat --list-models --format json
+```
 
 ## Usage
 
@@ -101,7 +112,7 @@ The extension is organized as one feature per file:
 ```
 src/
 ├── index.ts            # Extension registration
-├── models.ts           # 19 model definitions + ID resolution
+├── models.ts           # Static model metadata + dynamic model mapping + ID resolution
 ├── oauth.ts            # Multi-provider auth (Builder ID / Google / GitHub)
 ├── kiro-cli.ts         # kiro-cli credential sharing
 ├── transform.ts        # Message format conversion
