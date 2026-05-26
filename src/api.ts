@@ -1,7 +1,7 @@
 // ABOUTME: Minimal Kiro API client for metadata endpoints used by the provider.
 // ABOUTME: Fetches region-aware model catalog data from ListAvailableModels.
 
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
+import type { OAuthCredentials } from "@earendil-works/pi-ai";
 import { resolveApiRegion } from "./models.js";
 import type { KiroCredentials } from "./oauth.js";
 
