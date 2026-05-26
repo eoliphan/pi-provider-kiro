@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { KiroCredentials } from "../src/oauth.js";
-import { refreshKiroToken } from "../src/oauth.js";
+import { modelsCache, populateModelsCache, refreshKiroToken } from "../src/oauth.js";
 
 // Mock kiro-cli to prevent fallback to real credentials
 vi.mock("../src/kiro-cli.js", () => ({
@@ -11,15 +11,71 @@ vi.mock("../src/kiro-cli.js", () => ({
   saveKiroCliCredentials: vi.fn(),
 }));
 
+afterEach(() => {
+  modelsCache.clear();
+});
+
 describe("Feature 3: OAuth — Token Refresh", () => {
   // Interactive login / device code flow tests live in test/login.test.ts (Feature 10)
 
+  describe("populateModelsCache", () => {
+    it("stores fetched models by resolved API region", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              models: [
+                {
+                  modelId: "claude-sonnet-4.6",
+                  modelName: "Claude Sonnet 4.6",
+                  tokenLimits: { maxInputTokens: 200000, maxOutputTokens: 65536 },
+                  supportedInputTypes: ["TEXT", "IMAGE"],
+                },
+              ],
+            }),
+        }),
+      );
+
+      await populateModelsCache({ access: "token", refresh: "rt", expires: 0, region: "eu-west-1" } as KiroCredentials);
+
+      expect(modelsCache.get("eu-central-1")?.map((m) => m.id)).toEqual(["claude-sonnet-4-6"]);
+      vi.unstubAllGlobals();
+    });
+
+    it("warns and falls back when fetching models fails", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 403,
+          statusText: "Forbidden",
+          text: () => Promise.resolve("denied"),
+        }),
+      );
+
+      await expect(
+        populateModelsCache({ access: "token", refresh: "rt", expires: 0, region: "us-east-1" } as KiroCredentials),
+      ).resolves.toBeUndefined();
+
+      expect(modelsCache.size).toBe(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Failed to fetch models from API"));
+      warn.mockRestore();
+      vi.unstubAllGlobals();
+    });
+  });
+
   describe("refreshKiroToken", () => {
     it("refreshes token using encoded refresh field", async () => {
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ accessToken: "new_at", refreshToken: "new_rt", expiresIn: 3600 }),
-      });
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ accessToken: "new_at", refreshToken: "new_rt", expiresIn: 3600 }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ models: [] }) });
       vi.stubGlobal("fetch", mockFetch);
 
       const creds = await refreshKiroToken({
@@ -43,10 +99,13 @@ describe("Feature 3: OAuth — Token Refresh", () => {
     });
 
     it("refreshes desktop tokens via Kiro auth service", async () => {
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ accessToken: "desk_at", expiresIn: 3600 }),
-      });
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ accessToken: "desk_at", expiresIn: 3600 }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ models: [] }) });
       vi.stubGlobal("fetch", mockFetch);
 
       const creds = await refreshKiroToken({
@@ -97,10 +156,13 @@ describe("Feature 3: OAuth — Token Refresh", () => {
     });
 
     it("uses region from credentials for IDC refresh", async () => {
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ accessToken: "new_at", refreshToken: "new_rt", expiresIn: 3600 }),
-      });
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ accessToken: "new_at", refreshToken: "new_rt", expiresIn: 3600 }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ models: [] }) });
       vi.stubGlobal("fetch", mockFetch);
 
       await refreshKiroToken({

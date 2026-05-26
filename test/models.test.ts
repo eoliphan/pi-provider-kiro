@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { filterModelsByRegion, KIRO_MODEL_IDS, kiroModels, resolveApiRegion, resolveKiroModel } from "../src/models.js";
+import {
+  filterModelsByRegion,
+  KIRO_MODEL_IDS,
+  kiroModels,
+  mapKiroModel,
+  resolveApiRegion,
+  resolveKiroModel,
+} from "../src/models.js";
 
 describe("Feature 2: Model Definitions", () => {
   describe("resolveKiroModel", () => {
@@ -69,11 +76,65 @@ describe("Feature 2: Model Definitions", () => {
       expect(ids).toContain("claude-sonnet-4-6");
       expect(ids).toContain("minimax-m2-1");
       expect(ids).not.toContain("deepseek-3-2");
+      expect(ids).not.toContain("glm-5");
       expect(ids).not.toContain("agi-nova-beta-1m");
     });
 
     it("unknown region returns no models", () => {
       expect(filterModelsByRegion(kiroModels, "af-south-1")).toHaveLength(0);
+    });
+  });
+
+  describe("mapKiroModel", () => {
+    it("maps backend model metadata into a pi model for the API region", () => {
+      const model = mapKiroModel(
+        {
+          modelId: "claude-sonnet-4.6",
+          modelName: "Claude Sonnet 4.6",
+          tokenLimits: { maxInputTokens: 123456, maxOutputTokens: 65432 },
+          supportedInputTypes: ["TEXT", "IMAGE"],
+        },
+        "eu-central-1",
+      );
+
+      expect(model).toMatchObject({
+        id: "claude-sonnet-4-6",
+        name: "Claude Sonnet 4.6",
+        api: "kiro-api",
+        provider: "kiro",
+        baseUrl: "https://q.eu-central-1.amazonaws.com/generateAssistantResponse",
+        reasoning: true,
+        input: ["text", "image"],
+        contextWindow: 123456,
+        maxTokens: 65432,
+      });
+      expect(model.cost).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+    });
+
+    it("preserves xhigh thinking support for Opus models", () => {
+      const model = mapKiroModel(
+        {
+          modelId: "claude-opus-4.7",
+          modelName: "Claude Opus 4.7",
+          supportedInputTypes: ["TEXT", "IMAGE"],
+        },
+        "us-east-1",
+      );
+
+      expect(model.reasoning).toBe(true);
+      expect((model as { thinkingLevelMap?: { xhigh?: string } }).thinkingLevelMap?.xhigh).toBe("xhigh");
+    });
+
+    it("uses safe defaults for unknown backend models", () => {
+      const model = mapKiroModel({ modelId: "new-model-1.2", supportedInputTypes: ["TEXT"] }, "us-east-1");
+
+      expect(model.id).toBe("new-model-1-2");
+      expect(model.name).toBe("new-model-1.2");
+      expect(model.reasoning).toBe(false);
+      expect(model.input).toEqual(["text"]);
+      expect(model.contextWindow).toBe(200000);
+      expect(model.maxTokens).toBe(64000);
+      expect(resolveKiroModel("new-model-1-2")).toBe("new-model-1.2");
     });
   });
 
@@ -148,7 +209,9 @@ describe("Feature 2: Model Definitions", () => {
     function supportedLevels(model: (typeof kiroModels)[number]): Level[] {
       if (!model.reasoning) return ["off"];
       return EXTENDED_LEVELS.filter((level) => {
-        const mapped = (model as { thinkingLevelMap?: Partial<Record<Level, string | null>> }).thinkingLevelMap?.[level];
+        const mapped = (model as { thinkingLevelMap?: Partial<Record<Level, string | null>> }).thinkingLevelMap?.[
+          level
+        ];
         if (mapped === null) return false;
         if (level === "xhigh") return mapped !== undefined;
         return true;
@@ -172,13 +235,7 @@ describe("Feature 2: Model Definitions", () => {
 
     it("other reasoning models offer up to high (no xhigh)", () => {
       for (const m of kiroModels.filter((x) => x.reasoning && !XHIGH_MODELS.includes(x.id))) {
-        expect(supportedLevels(m), `${m.id} supported levels`).toEqual([
-          "off",
-          "minimal",
-          "low",
-          "medium",
-          "high",
-        ]);
+        expect(supportedLevels(m), `${m.id} supported levels`).toEqual(["off", "minimal", "low", "medium", "high"]);
       }
     });
 

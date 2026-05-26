@@ -7,9 +7,10 @@
 // When no existing credentials are found (no Kiro IDE, no kiro-cli), falls back
 // to the interactive login flow in login.ts (Feature 10).
 
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
+import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import { getKiroIdeCredentials, getKiroIdeCredentialsAllowExpired } from "./kiro-ide.js";
 import { interactiveLogin, loginViaKiroCli } from "./login.js";
+import { fetchKiroModels, resolveApiRegion } from "./models.js";
 
 export const SSO_OIDC_ENDPOINT = "https://oidc.us-east-1.amazonaws.com";
 export const BUILDER_ID_START_URL = "https://view.awsapps.com/start";
@@ -48,7 +49,7 @@ export async function loginKiro(
 
   // If user explicitly wants social login, delegate to kiro-cli
   if (preferredMethod === "google" || preferredMethod === "github") {
-    return loginViaKiroCli(callbacks, preferredMethod);
+    return withModelsCache(await loginViaKiroCli(callbacks, preferredMethod));
   }
 
   // 1. Kiro IDE token (~/.aws/sso/cache/kiro-auth-token.json)
@@ -59,7 +60,7 @@ export async function loginKiro(
     (callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
       "Using existing Kiro IDE credentials",
     );
-    return ideCreds;
+    return withModelsCache(ideCreds);
   }
 
   // 2. kiro-cli DB credentials (social / Builder ID / IdC)
@@ -74,7 +75,7 @@ export async function loginKiro(
         ? "Using existing kiro-cli social credentials"
         : "Using existing kiro-cli credentials",
     );
-    return cliCreds;
+    return withModelsCache(cliCreds);
   }
 
   // 3. Expired IDE token — attempt a silent AWS OIDC refresh
@@ -84,7 +85,7 @@ export async function loginKiro(
       (callbacks as unknown as { onProgress?: (msg: string) => void }).onProgress?.(
         "Refreshing Kiro IDE credentials...",
       );
-      return await refreshKiroTokenDirect(expiredIdeCreds);
+      return withModelsCache(await refreshKiroTokenDirect(expiredIdeCreds));
     } catch {
       // Fall through to kiro-cli refresh
     }
@@ -99,14 +100,14 @@ export async function loginKiro(
       );
       const refreshed = await refreshKiroTokenDirect(expiredCreds);
       saveKiroCliCredentials(refreshed as KiroCredentials);
-      return refreshed;
+      return withModelsCache(refreshed);
     } catch {
       // Refresh failed, fall through to device code flow
     }
   }
 
   // Fall back to interactive login (Feature 10)
-  return interactiveLogin(callbacks);
+  return withModelsCache(await interactiveLogin(callbacks));
 }
 
 /**
@@ -121,13 +122,32 @@ export async function loginKiroBuilderID(callbacks: OAuthLoginCallbacks): Promis
 // The actual AWS token is valid for this much longer than credentials.expires indicates.
 const EXPIRES_BUFFER_MS = 5 * 60 * 1000;
 
+export const modelsCache = new Map<string, Model<Api>[]>();
+
+export async function populateModelsCache(credentials: OAuthCredentials): Promise<void> {
+  try {
+    const apiRegion = resolveApiRegion((credentials as KiroCredentials).region);
+    const models = await fetchKiroModels(credentials, apiRegion);
+    modelsCache.set(apiRegion, models);
+  } catch (error) {
+    console.warn(
+      `[pi-provider-kiro] Failed to fetch models from API: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function withModelsCache(credentials: OAuthCredentials): Promise<OAuthCredentials> {
+  await populateModelsCache(credentials);
+  return credentials;
+}
+
 export async function refreshKiroToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
   const { getKiroCliCredentials, getKiroCliCredentialsAllowExpired, saveKiroCliCredentials, getKiroCliSocialToken } =
     await import("./kiro-cli.js");
 
   // Layer 0: Kiro IDE token — freshest source, covers IAM Identity Center
   const ideCreds = getKiroIdeCredentials();
-  if (ideCreds) return ideCreds;
+  if (ideCreds) return withModelsCache(ideCreds);
 
   // Layer 1: Pre-refresh check — prefer social token if available (user logged in that way)
   // Otherwise check for any valid kiro-cli token
@@ -136,7 +156,7 @@ export async function refreshKiroToken(credentials: OAuthCredentials): Promise<O
     preCheckCreds = getKiroCliCredentials();
   }
   if (preCheckCreds) {
-    return preCheckCreds;
+    return withModelsCache(preCheckCreds);
   }
 
   try {
@@ -145,7 +165,7 @@ export async function refreshKiroToken(credentials: OAuthCredentials): Promise<O
     // Layer 2: Write refreshed tokens back to kiro-cli's SQLite DB so both stay in sync.
     saveKiroCliCredentials(refreshed as KiroCredentials);
 
-    return refreshed;
+    return withModelsCache(refreshed);
   } catch (refreshError) {
     // Layer 3: Refresh token may have been rotated by kiro-cli between our
     // Layer 1 check and the network call. Re-read kiro-cli's DB.
