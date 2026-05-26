@@ -1,6 +1,6 @@
 // Feature 2: Model Definitions
 
-import type { Api, Model, OAuthCredentials } from "@mariozechner/pi-ai";
+import type { Api, Model, OAuthCredentials } from "@earendil-works/pi-ai";
 import type { KiroModel } from "./api.js";
 
 // Valid Kiro model IDs - API accepts friendly names directly

@@ -1,15 +1,16 @@
 {
   "name": "pi-provider-kiro",
   "version": "0.6.1",
-  "description": "pi extension for the Kiro API (AWS CodeWhisperer/Q) — 19 models across 8 families with OAuth authentication",
+  "description": "pi extension for the Kiro API (AWS CodeWhisperer/Q) with dynamic model discovery and OAuth authentication",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mikeyobrien/pi-provider-kiro.git"
+    "url": "git+https://github.com/eoliphan/pi-provider-kiro.git"
   },
   "keywords": [
     "pi",
+    "pi-package",
     "kiro",
     "aws",
     "codewhisperer",
@@ -18,30 +19,39 @@
   ],
   "files": [
     "dist",
+    "src",
     "README.md"
   ],
   "scripts": {
-    "build": "tsc && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/index.js --allow-overwrite --external:@mariozechner/pi-ai --external:@mariozechner/pi-coding-agent --external:@mariozechner/pi-tui",
+    "build": "tsc && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/index.js --allow-overwrite --external:@earendil-works/pi-ai --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-tui",
     "check": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "pi": {
     "extensions": [
-      "./dist/index.js"
+      "./src/index.ts"
     ]
+  },
+  "dependencies": {
+    "js-tiktoken": "^1.0.21"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
-    "@mariozechner/pi-ai": "^0.53.0",
-    "@mariozechner/pi-coding-agent": "^0.53.0",
-    "js-tiktoken": "^1.0.21",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "@earendil-works/pi-ai": "^0.75.5",
+    "@earendil-works/pi-coding-agent": "^0.75.5",
+    "@earendil-works/pi-tui": "^0.75.5",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7"
   }
 }

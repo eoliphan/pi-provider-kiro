@@ -7,7 +7,7 @@
 // When no existing credentials are found (no Kiro IDE, no kiro-cli), falls back
 // to the interactive login flow in login.ts (Feature 10).
 
-import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks } from "@mariozechner/pi-ai";
+import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { getKiroIdeCredentials, getKiroIdeCredentialsAllowExpired } from "./kiro-ide.js";
 import { interactiveLogin, loginViaKiroCli } from "./login.js";
 import { fetchKiroModels, resolveApiRegion } from "./models.js";

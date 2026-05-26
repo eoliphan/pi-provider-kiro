@@ -7,7 +7,7 @@ import type {
   Model,
   TextContent,
   ToolResultMessage,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { capacityRetryConfig, retryConfig } from "../src/retry.js";
 import { resetProfileArnCache, streamKiro } from "../src/stream.js";
@@ -2202,10 +2202,14 @@ describe("Feature 9: Streaming Integration", () => {
     expect(json).not.toContain('"Continue"');
     // Padding uses "..." which is caught by echo stripping — not "Continue" or "."
     const history = body.conversationState.history || [];
+    type KiroHistoryEntry = {
+      assistantResponseMessage?: { content?: string };
+      userInputMessage?: { content?: string };
+    };
     const badPadding = history.filter(
-      (h: any) =>
-        (h.assistantResponseMessage && /^(Continue|\.)$/i.test(h.assistantResponseMessage.content)) ||
-        (h.userInputMessage && /^(Continue|\.)$/i.test(h.userInputMessage.content)),
+      (h: KiroHistoryEntry) =>
+        (h.assistantResponseMessage?.content && /^(Continue|\.)$/i.test(h.assistantResponseMessage.content)) ||
+        (h.userInputMessage?.content && /^(Continue|\.)$/i.test(h.userInputMessage.content)),
     );
     expect(badPadding).toHaveLength(0);
 

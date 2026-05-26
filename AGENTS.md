@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-pi extension that connects the pi coding agent to the Kiro API (AWS CodeWhisperer/Q). Provides 17 models across 7 families with multi-provider authentication (AWS Builder ID, Google, GitHub).
+pi extension that connects the pi coding agent to the Kiro API (AWS CodeWhisperer/Q). Uses Kiro backend model discovery with multi-provider authentication (AWS Builder ID, Google, GitHub).
 
 ## Directory Structure
 
@@ -23,7 +23,7 @@ pi-provider-kiro/
 ├── test/                   # 1:1 test files for each source file
 ├── dist/                   # Compiled output (tsc)
 ├── .agents/summary/        # Detailed documentation (architecture, components, etc.)
-├── package.json            # Extension config: pi.extensions → dist/index.js
+├── package.json            # Extension config: pi.extensions → src/index.ts for GitHub installs
 ├── tsconfig.json           # ES2022, ESNext modules, strict
 └── vitest.config.ts        # Test config
 ```
@@ -34,7 +34,7 @@ pi-provider-kiro/
 Each `src/` file owns exactly one numbered feature (F1–F9). When modifying a feature, the relevant file is obvious. Each has a matching test file.
 
 ### Model ID Convention
-pi uses dashes (`claude-sonnet-4-6`), Kiro API uses dots (`claude-sonnet-4.6`). Conversion in `resolveKiroModel()` via regex: `(\d)-(\d)` → `$1.$2`. The `KIRO_MODEL_IDS` Set is the source of truth for valid model IDs.
+pi uses dashes (`claude-sonnet-4-6`), Kiro API uses dots (`claude-sonnet-4.6`). Conversion in `resolveKiroModel()` via regex: `(\d)-(\d)` → `$1.$2`. Backend-fetched model IDs are accepted dynamically; `KIRO_MODEL_IDS` remains static metadata/fallback validation.
 
 ### Kiro History Format
 Kiro requires strict alternating `userInputMessage` / `assistantResponseMessage` entries. Tool results must be wrapped in synthetic user messages. `buildHistory()` in transform.ts handles this; `history.ts` sanitizes and truncates.
@@ -60,6 +60,14 @@ Users can authenticate via:
 - **GitHub**: Social login (delegates to `kiro-cli login`, requires local browser or SSH port forwarding)
 
 ## Development
+
+This fork is intended to install directly from GitHub with:
+
+```bash
+pi install git:github.com/eoliphan/pi-provider-kiro
+```
+
+`package.json` points `pi.extensions` at `./src/index.ts`, which pi can load directly via its TypeScript extension loader. No package root override or checked-in `dist/` build artifact is required for GitHub installs. Runtime dependencies belong in `dependencies`; pi core packages are `peerDependencies` and dev-only type/build dependencies.
 
 ```bash
 npm run build     # tsc → dist/

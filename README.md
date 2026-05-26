@@ -1,6 +1,6 @@
 # pi-provider-kiro
 
-A [pi](https://shittycodingagent.ai/) provider extension that connects pi to the **Kiro API** (AWS CodeWhisperer/Q), exposing the models available to your Kiro account through one provider surface.
+A [pi](https://pi.dev/) provider extension that connects pi to the **Kiro API** (AWS CodeWhisperer/Q), exposing the models available to your Kiro account through one provider surface.
 
 ## Why this exists
 
@@ -31,7 +31,7 @@ To pin a specific branch, tag, or commit, append `@ref`:
 
 ```bash
 pi install git:github.com/eoliphan/pi-provider-kiro@main
-pi install git:github.com/eoliphan/pi-provider-kiro@issue-69-dynamic-models
+pi install git:github.com/eoliphan/pi-provider-kiro@<commit-sha>
 ```
 
 Update the installed GitHub package later with:
@@ -39,6 +39,8 @@ Update the installed GitHub package later with:
 ```bash
 pi update --extensions
 ```
+
+The GitHub package is configured at the repository root via `package.json` and loads `./src/index.ts` directly, so no separate npm publish or `dist/` build artifact is required for pi installation.
 
 Then log in from pi:
 
