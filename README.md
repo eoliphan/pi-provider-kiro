@@ -60,11 +60,12 @@ If you already use [kiro-cli](https://kiro.dev), the provider can reuse those cr
 
 Kiro model availability is account-, plan-, auth-, and region-dependent. This provider fetches the model list from Kiro's backend and uses static metadata only as enrichment/fallback hints.
 
+In **Oh My Pi**, Kiro models only appear after the provider has usable auth configured (`/login kiro` or reusable `kiro-cli` credentials). Until auth exists, OMP hides the provider from `--list-models` and the model picker even if the extension is installed correctly.
+
 List the models currently visible to pi with:
 
 ```bash
 pi --provider kiro --list-models
-```
 
 For comparison, Kiro CLI exposes its current backend list with:
 

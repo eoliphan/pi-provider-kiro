@@ -12,6 +12,7 @@ describe("Feature 2: Model Definitions", () => {
   describe("resolveKiroModel", () => {
     it.each([
       // Claude models - dash to dot conversion
+      ["claude-opus-4-8", "claude-opus-4.8"],
       ["claude-opus-4-7", "claude-opus-4.7"],
       ["claude-opus-4-6", "claude-opus-4.6"],
       ["claude-opus-4-6-1m", "claude-opus-4.6-1m"],
@@ -40,7 +41,7 @@ describe("Feature 2: Model Definitions", () => {
 
   describe("KIRO_MODEL_IDS", () => {
     it("contains 19 model IDs", () => {
-      expect(KIRO_MODEL_IDS.size).toBe(18);
+      expect(KIRO_MODEL_IDS.size).toBe(19);
     });
   });
 
@@ -74,6 +75,7 @@ describe("Feature 2: Model Definitions", () => {
     it("eu-central-1 includes Claude + documented OSS, excludes DeepSeek and undocumented models", () => {
       const ids = filterModelsByRegion(kiroModels, "eu-central-1").map((m) => m.id);
       expect(ids).toContain("claude-sonnet-4-6");
+      expect(ids).toContain("claude-opus-4-8");
       expect(ids).toContain("minimax-m2-1");
       expect(ids).not.toContain("deepseek-3-2");
       expect(ids).not.toContain("glm-5");
@@ -114,8 +116,8 @@ describe("Feature 2: Model Definitions", () => {
     it("preserves xhigh thinking support for Opus models", () => {
       const model = mapKiroModel(
         {
-          modelId: "claude-opus-4.7",
-          modelName: "Claude Opus 4.7",
+          modelId: "claude-opus-4.8",
+          modelName: "Claude Opus 4.8",
           supportedInputTypes: ["TEXT", "IMAGE"],
         },
         "us-east-1",
@@ -140,7 +142,7 @@ describe("Feature 2: Model Definitions", () => {
 
   describe("model catalog", () => {
     it("defines 19 models", () => {
-      expect(kiroModels).toHaveLength(18);
+      expect(kiroModels).toHaveLength(19);
     });
 
     it("claude-haiku-4-5 has reasoning=false", () => {
@@ -218,9 +220,9 @@ describe("Feature 2: Model Definitions", () => {
       });
     }
 
-    const XHIGH_MODELS = ["claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-6-1m"];
+    const XHIGH_MODELS = ["claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-6-1m"];
 
-    it("Opus 4.7/4.6 models offer xhigh (and all other levels)", () => {
+    it("Opus 4.8/4.7/4.6 models offer xhigh (and all other levels)", () => {
       for (const m of kiroModels.filter((x) => XHIGH_MODELS.includes(x.id))) {
         expect(supportedLevels(m), `${m.id} supported levels`).toEqual([
           "off",

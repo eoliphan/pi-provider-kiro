@@ -31,6 +31,7 @@ export interface KiroCredentials extends OAuthCredentials {
   clientSecret: string;
   region: string;
   authMethod: KiroAuthMethod;
+  profileArn?: string;
 }
 
 /**

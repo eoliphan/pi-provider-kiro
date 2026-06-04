@@ -16,12 +16,12 @@ import type {
   ToolCall,
   ToolResultMessage,
 } from "@earendil-works/pi-ai";
-import { calculateCost, createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import * as piAi from "@earendil-works/pi-ai";
 import { parseBracketToolCalls } from "./bracket-tool-parser.js";
 import { debugEnabled, debugLog } from "./debug.js";
 import { parseKiroEvents } from "./event-parser.js";
 import { addPlaceholderTools, HISTORY_LIMIT, HISTORY_LIMIT_CONTEXT_WINDOW, truncateHistory } from "./history.js";
-import { getKiroCliCredentials, refreshViaKiroCli } from "./kiro-cli.js";
+import { getKiroCliCredentials, getKiroCliCredentialsAllowExpired, refreshViaKiroCli } from "./kiro-cli.js";
 import { resolveKiroModel } from "./models.js";
 import {
   capacityRetryConfig,
@@ -160,6 +160,36 @@ async function resolveProfileArn(accessToken: string, endpoint: string): Promise
   }
 }
 
+function createAssistantStream(): AssistantMessageEventStream {
+  if (typeof piAi.createAssistantMessageEventStream === "function") {
+    return piAi.createAssistantMessageEventStream();
+  }
+
+  const compat = piAi as typeof piAi & {
+    AssistantMessageEventStream?: new () => AssistantMessageEventStream;
+  };
+  const StreamCtor = compat.AssistantMessageEventStream;
+  if (!StreamCtor) {
+    throw new Error("AssistantMessageEventStream is unavailable in the loaded pi-ai runtime");
+  }
+  return new StreamCtor();
+}
+type KiroProfileArnOptions = {
+  credentials?: { profileArn?: string };
+  profileArn?: string;
+};
+
+function getOptionProfileArn(options?: SimpleStreamOptions): string | undefined {
+  const profileOptions = options as SimpleStreamOptions & KiroProfileArnOptions;
+  return profileOptions.credentials?.profileArn || profileOptions.profileArn;
+}
+
+function getCliProfileArn(accessToken: string): string | undefined {
+  const cliCreds = getKiroCliCredentials() ?? getKiroCliCredentialsAllowExpired();
+  if (!cliCreds || cliCreds.access !== accessToken) return undefined;
+  return cliCreds.profileArn;
+}
+
 function emitToolCall(
   state: KiroToolCallState,
   output: AssistantMessage,
@@ -196,7 +226,7 @@ export function streamKiro(
   context: Context,
   options?: SimpleStreamOptions,
 ): AssistantMessageEventStream {
-  const stream = createAssistantMessageEventStream();
+  const stream = createAssistantStream();
   (async () => {
     const output: AssistantMessage = {
       role: "assistant",
@@ -220,7 +250,8 @@ export function streamKiro(
       if (!accessToken) throw new Error("Kiro credentials not set. Run /login kiro or install kiro-cli.");
       const endpoint = model.baseUrl || "https://q.us-east-1.amazonaws.com/generateAssistantResponse";
 
-      let profileArn = await resolveProfileArn(accessToken, endpoint);
+      const optionProfileArn = getOptionProfileArn(options);
+      let profileArn = optionProfileArn || getCliProfileArn(accessToken) || (await resolveProfileArn(accessToken, endpoint));
       const kiroModelId = resolveKiroModel(model.id);
       const thinkingEnabled = !!options?.reasoning || model.reasoning;
       debugLog("request.init", {
@@ -451,9 +482,10 @@ export function streamKiro(
               const freshCreds = getKiroCliCredentials() ?? refreshViaKiroCli();
               if (freshCreds?.access) accessToken = freshCreds.access;
 
-              // Re-resolve profileArn with fresh credentials
+              // Re-resolve profileArn with fresh credentials unless the caller
+              // supplied an explicit override in the request options.
               profileArnCache.delete(endpoint);
-              profileArn = await resolveProfileArn(accessToken, endpoint);
+              profileArn = optionProfileArn || freshCreds?.profileArn || (await resolveProfileArn(accessToken, endpoint));
               const delayMs = exponentialBackoff(retryCount - 1, 500, MAX_RETRY_DELAY);
               await abortableDelay(delayMs, options?.signal);
               break; // break inner loop, continue outer loop
@@ -687,7 +719,7 @@ export function streamKiro(
         output.usage.output = usageEvent?.outputTokens ?? countTokens(totalContent);
         output.usage.totalTokens = output.usage.input + output.usage.output;
         try {
-          calculateCost(model, output.usage);
+          piAi.calculateCost(model, output.usage);
         } catch {
           // Model might not have cost info, use zeros
           output.usage.cost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };

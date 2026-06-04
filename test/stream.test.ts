@@ -179,6 +179,35 @@ describe("Feature 9: Streaming Integration", () => {
 
     vi.unstubAllGlobals();
   });
+  it("reuses profileArn from matching kiro-cli credentials before probing profiles", async () => {
+    resetProfileArnCache(false);
+    const mockFetch = mockFetchOk('{"content":"Hi"}{"contextUsagePercentage":5}');
+    vi.stubGlobal("fetch", mockFetch);
+
+    const kiroCliModule = await import("../src/kiro-cli.js");
+    const getCredsSpy = vi.spyOn(kiroCliModule, "getKiroCliCredentials").mockReturnValue({
+      refresh: "refresh|desktop",
+      access: "tok",
+      expires: Date.now() + 3600000,
+      clientId: "",
+      clientSecret: "",
+      region: "us-east-1",
+      authMethod: "desktop",
+      profileArn: "arn:aws:codewhisperer:us-east-1:123:profile/FROM-CLI",
+    });
+
+    const stream = streamKiro(makeModel(), makeContext(), { apiKey: "tok" });
+    await collect(stream);
+
+    expect(getCredsSpy).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.profileArn).toBe("arn:aws:codewhisperer:us-east-1:123:profile/FROM-CLI");
+
+    getCredsSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
 
   it("sets stopReason to toolUse when tool calls are present", async () => {
     const toolPayload = '{"name":"bash","toolUseId":"tc1","input":"{\\"cmd\\":\\"ls\\"}","stop":true}';
